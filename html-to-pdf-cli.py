@@ -93,14 +93,18 @@ def update_title(file_path):
         return
 
     # 生成标题
-    title =  f"{stocks_kv[symbol]}{year}年简体中文版{quarters_kv[quarter]}-价格与价值"
+    new_title =  f"{stocks_kv[symbol]}{year}年简体中文版{quarters_kv[quarter]}-价格与价值"
 
-    # 读取html文件内容
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, 'r', encoding='utf-8') as f:
         html_content = f.read()
 
     # 替换<title>标签内容
-    html_content = re.sub(r"<title>.*?</title>", f"<title>{title}</title>", html_content, flags=re.DOTALL)
+    soup = BeautifulSoup(html_content, 'html.parser')
+    title_tag = soup.find('title')
+    if title_tag is None or title_tag.string == new_title:
+        print(f"Skipped title: {file_path}")
+        return
+    title_tag.string = new_title
 
     # 写入html文件
     with open(file_path, "w", encoding="utf-8") as f:
