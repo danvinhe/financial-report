@@ -7,6 +7,7 @@ import pdfkit
 import asyncio
 from pyppeteer import launch
 import os
+from xhtml2pdf import pisa
 
 os.environ["PYPPETEER_DOWNLOAD_HOST"] = "https://cdn.npmmirror.com/binaries"
 
@@ -39,7 +40,8 @@ def process_file(file_path, output_dir):
     pdf_file_path = os.path.join(output_dir, pdf_file_name)
 
     # save_as_pdf(file_path, pdf_file_path)
-    asyncio.get_event_loop().run_until_complete(save_as_pdf_by_pyppeteer(file_path, pdf_file_path))
+    # asyncio.get_event_loop().run_until_complete(save_as_pdf_by_pyppeteer(file_path, pdf_file_path))
+    save_as_pdf_by_xhtml2pdf(file_path, pdf_file_path)
 
     print(f"Processed: {file_path} to {pdf_file_path}")
 
@@ -153,6 +155,17 @@ async def save_as_pdf_by_pyppeteer(file_path, output_pdf):
     await page.pdf({'path': output_pdf, 'format': 'A4', 'scale': 1.4})
 
     await browser.close()
+
+def save_as_pdf_by_xhtml2pdf(file_path, output_pdf):
+    with open(file_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+
+     # Generate PDF
+    with open(output_pdf, "wb") as pdf_file:
+        pisa_status = pisa.CreatePDF(html_content, dest=pdf_file)
+
+    if pisa_status.err:
+        raise Exception(f"Error creating PDF: {pisa_status.err}")
 
 # 处理全部html文件
 @app.command()
