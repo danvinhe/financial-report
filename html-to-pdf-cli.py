@@ -118,7 +118,7 @@ def update_title(file_path):
 
     # 写入html文件
     with open(file_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
+        f.write(str(soup))
 
     print(f"Updated title: {file_path}")
 
