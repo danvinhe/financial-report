@@ -55,8 +55,12 @@ def remove_images(file_path):
         html_content = f.read()
 
     soup = BeautifulSoup(html_content, 'html.parser')
-    for svg_image in soup.find_all('image'):
-        svg_image.decompose()
+    svg_images = soup.find_all('image')
+    if len(svg_images) == 0:
+        return
+
+    for image in svg_images:
+        image.decompose()
 
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(str(soup))
