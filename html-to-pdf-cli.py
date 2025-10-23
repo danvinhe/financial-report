@@ -4,6 +4,11 @@ import typer
 from rich import print
 from bs4 import BeautifulSoup
 import pdfkit
+import asyncio
+from pyppeteer import launch
+import os
+
+os.environ["PYPPETEER_DOWNLOAD_HOST"] = "https://cdn.npmmirror.com/binaries"
 
 app = typer.Typer()
 
@@ -28,9 +33,15 @@ def process_file(file_path, output_dir):
     add_watermark(file_path)
 
     # 生成PDF文件
-    pdf_path = save_as_pdf(file_path, output_dir)
 
-    print(f"Processed: {file_path} to {pdf_path}")
+    file_name = os.path.basename(file_path)
+    pdf_file_name = f"{file_name[0: len(file_name) - 5]}.pdf"
+    pdf_file_path = os.path.join(output_dir, pdf_file_name)
+
+    # save_as_pdf(file_path, pdf_file_path)
+    asyncio.get_event_loop().run_until_complete(save_as_pdf_by_pyppeteer(file_path, pdf_file_path))
+
+    print(f"Processed: {file_path} to {pdf_file_path}")
 
 # 清除文件中的图片
 def remove_images(file_path):
@@ -125,14 +136,19 @@ def add_watermark(file_path):
 
     print(f"Added watermark: {file_path}")
 #
-def save_as_pdf(file_path, output_dir):
+def save_as_pdf(file_path, output_pdf):
 
-    file_name = os.path.basename(file_path)
-    pdf_file_name = f"{file_name[0: len(file_name) - 5]}.pdf"
-    pdf_file_path = os.path.join(output_dir, pdf_file_name)
-    pdfkit.from_file(file_path, pdf_file_path)
+   pdfkit.from_file(file_path, output_pdf)
 
-    return pdf_file_path
+async def save_as_pdf_by_pyppeteer(file_path, output_pdf):
+    browser = await launch()
+    page = await browser.newPage()
+
+    await page.goto(f"file://{file_path}")
+
+    await page.pdf({'path': output_pdf, 'format': 'A4', 'scale': 1.4})
+
+    await browser.close()
 
 # 处理全部html文件
 @app.command()
