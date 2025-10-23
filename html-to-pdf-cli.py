@@ -137,7 +137,7 @@ def add_watermark(file_path):
         return
 
     # 替换样式
-    watermark_css = """.page {margin:5px 0; position: relative;}\n.page::before {content: "公众号·价格与价值";position: absolute;top: 0;left: 0;right: 0;bottom: 0;display: flex;justify-content: center;align-items: center;font-size: 88px;font-weight: bold;color: rgba(0, 0, 0, 0.1);transform: rotate(-45deg);pointer-events: none; z-index: 1;}"""
+    watermark_css = """@page {size:A4; margin: 0;}\n.page {margin:5px 0; position: relative;}\n.page::before {content: "公众号·价格与价值";position: absolute;top: 0;left: 0;right: 0;bottom: 0;display: flex;justify-content: center;align-items: center;font-size: 88px;font-weight: bold;color: rgba(0, 0, 0, 0.1);transform: rotate(-45deg);pointer-events: none; z-index: 1;}"""
     html_content = html_content.replace(original_css, watermark_css)
 
     # 写入html文件
