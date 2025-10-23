@@ -8,6 +8,8 @@ import asyncio
 from pyppeteer import launch
 import os
 from xhtml2pdf import pisa
+import asyncio
+from playwright.async_api import async_playwright
 
 os.environ["PYPPETEER_DOWNLOAD_HOST"] = "https://cdn.npmmirror.com/binaries"
 
@@ -40,8 +42,9 @@ def process_file(file_path, output_dir):
     pdf_file_path = os.path.join(output_dir, pdf_file_name)
 
     # save_as_pdf(file_path, pdf_file_path)
-    # asyncio.get_event_loop().run_until_complete(save_as_pdf_by_pyppeteer(file_path, pdf_file_path))
+    # asyncio.run(save_as_pdf_by_pyppeteer(file_path, pdf_file_path))
     save_as_pdf_by_xhtml2pdf(file_path, pdf_file_path)
+    asyncio.run(save_as_pdf_by_playwright(file_path, pdf_file_path))
 
     print(f"Processed: {file_path} to {pdf_file_path}")
 
@@ -166,6 +169,14 @@ def save_as_pdf_by_xhtml2pdf(file_path, output_pdf):
 
     if pisa_status.err:
         raise Exception(f"Error creating PDF: {pisa_status.err}")
+
+async def save_as_pdf_by_playwright(file_path, output_pdf):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        page = await browser.new_page()
+        await page.goto(f"file://{file_path}")
+        await page.pdf(scale=1.4, format="A4", path=output_pdf)
+        await browser.close()
 
 # 处理全部html文件
 @app.command()
