@@ -6,15 +6,15 @@ app = typer.Typer()
 
 def process_file(file_path, title_prefix):
 
-    update_title(file_path, title_prefix)
     add_watermark(file_path)
+
+    update_title(file_path, title_prefix)
 
 def update_title(file_path, title_prefix):
     file_name = os.path.basename(file_path)
 
     # 生成标题
-    new_title =  f"{title_prefix}{file_name[2:len(file_name)-8]}-价格与价值"
-    print(new_title)
+    new_title =  f"{title_prefix}{file_name[0:len(file_name)-8]}-价格与价值"
 
     with open(file_path, 'r', encoding='utf-8') as f:
         html_content = f.read()
@@ -22,17 +22,14 @@ def update_title(file_path, title_prefix):
     # 替换<title>标签内容
     soup = BeautifulSoup(html_content, 'html.parser')
     title_tag = soup.find('title')
-    print(title_tag)
     if title_tag is None or title_tag.string == new_title:
         print(f"Skipped title: {file_path}")
         return
     title_tag.string = new_title
-    print(title_tag)
 
     # 写入html文件
     with open(file_path, "w", encoding="utf-8") as f:
-        n = f.write(html_content)
-        print(n)
+        n = f.write(str(soup))
 
     print(f"Updated title: {file_path}")
 
