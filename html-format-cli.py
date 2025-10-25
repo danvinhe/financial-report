@@ -1,20 +1,56 @@
 import os
 import typer
 from bs4 import BeautifulSoup
+from opencc import OpenCC
+import re
 
 app = typer.Typer()
 
 def process_file(file_path, title_prefix):
 
+    remove_images(file_path)
+
     add_watermark(file_path)
 
     update_title(file_path, title_prefix)
 
-def update_title(file_path, title_prefix):
-    file_name = os.path.basename(file_path)
+    tc_to_sc(file_path)
 
-    # 生成标题
-    new_title =  f"{title_prefix}{file_name[0:len(file_name)-8]}-价格与价值"
+# 清除文件中的图片
+def remove_images(file_path):
+    with open(file_path, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+
+    soup = BeautifulSoup(html_content, 'html.parser')
+    svg_images = soup.find_all('image')
+    if len(svg_images) == 0:
+        print(f"Skipped images: {file_path}")
+        return
+
+    for image in svg_images:
+        image.decompose()
+
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(str(soup))
+
+    print(f"Removed images: {file_path}")
+
+def update_title(file_path, title_prefix):
+    # 季度映射
+    quarters_kv = {
+        "1": "一季报",
+        "2": "中报",
+        "3": "三季报",
+        "4": "年报"
+    }
+    file_name = os.path.basename(file_path)
+    match = re.fullmatch(r"\d{4}Q[1-4]\.sc\.html", file_name)
+    if match:
+        year, quarter = file_name[0:4], file_name[5]
+        new_title =  f"{title_prefix}{year}年简体中文版{quarters_kv[quarter]}"
+    else:
+        new_title =  f"{title_prefix}{file_name[0:len(file_name)-8]}"
+    new_title += " | 价格与价值"
 
     with open(file_path, 'r', encoding='utf-8') as f:
         html_content = f.read()
@@ -59,6 +95,20 @@ def add_watermark(file_path):
         f.write(html_content)
 
     print(f"Added watermark: {file_path}")
+
+def tc_to_sc(file_path):
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        html_content = f.read()
+
+    cc = OpenCC('t2s')
+    new_html_content = cc.convert(html_content)
+
+    # 写入html文件
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(new_html_content)
+
+    print(f"Converted TC: {file_path}")
 
 @app.command()
 def main(source_dir: str = "", title_prefix: str = ""):
