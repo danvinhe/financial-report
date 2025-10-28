@@ -1,22 +1,23 @@
 import os
-import re
 import typer
 from rich import print
-from bs4 import BeautifulSoup
 import pdfkit
 import asyncio
 from pyppeteer import launch
-import os
 from xhtml2pdf import pisa
 from playwright.async_api import async_playwright
 from weasyprint import HTML
+import base64
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.print_page_options import PrintOptions
 
 os.environ["PYPPETEER_DOWNLOAD_HOST"] = "https://cdn.npmmirror.com/binaries"
 
 app = typer.Typer()
 
 # 处理单个html文件
-def process_file(file_path, output_dir):
+def process_file(file_path, output_dir, engine_flag):
     """
     将单个HTML文件转换为PDF文件
 
@@ -26,130 +27,50 @@ def process_file(file_path, output_dir):
     """
     print(f"Processing: {file_path}")
 
-    # 清除文件中的图片
-    remove_images(file_path)
-
-    # 提取标题并更新HTML的<title>标签
-    update_title(file_path)
-
-    # 添加水印
-    add_watermark(file_path)
-
     # 生成PDF文件
-
     file_name = os.path.basename(file_path)
     pdf_file_name = f"{file_name[0: len(file_name) - 5]}.pdf"
-    pdf_file_path = os.path.join(output_dir, pdf_file_name)
 
-    # save_as_pdf(file_path, pdf_file_path)
-    # asyncio.run(save_as_pdf_by_pyppeteer(file_path, pdf_file_path))
-    # save_as_pdf_by_xhtml2pdf(file_path, pdf_file_path)
-    # asyncio.run(save_as_pdf_by_playwright(file_path, pdf_file_path))
-    save_as_pdf_by_weasyprint(file_path, pdf_file_path)
+    if engine_flag & 1:
+        pdf_file_dir = os.path.join(output_dir, 'wp')
+        os.makedirs(pdf_file_dir, exist_ok=True)
+        pdf_file_path = os.path.join(pdf_file_dir, pdf_file_name)
+        save_as_pdf_by_weasyprint(file_path, pdf_file_path)
+        print(f"Processed: {file_path} to {pdf_file_path}")
 
-    print(f"Processed: {file_path} to {pdf_file_path}")
+    if engine_flag & 2:
+        pdf_file_dir = os.path.join(output_dir, 'pw')
+        os.makedirs(pdf_file_dir, exist_ok=True)
+        pdf_file_path = os.path.join(pdf_file_dir, pdf_file_name)
+        asyncio.run(save_as_pdf_by_playwright(file_path, pdf_file_path))
+        print(f"Processed: {file_path} to {pdf_file_path}")
 
-# 清除文件中的图片
-def remove_images(file_path):
-    with open(file_path, 'r', encoding='utf-8') as f:
-        html_content = f.read()
+    if engine_flag & 4:
+        pdf_file_dir = os.path.join(output_dir, 'pp')
+        os.makedirs(pdf_file_dir, exist_ok=True)
+        pdf_file_path = os.path.join(pdf_file_dir, pdf_file_name)
+        asyncio.run(save_as_pdf_by_pyppeteer(file_path, pdf_file_path))
+        print(f"Processed: {file_path} to {pdf_file_path}")
 
-    soup = BeautifulSoup(html_content, 'html.parser')
-    svg_images = soup.find_all('image')
-    if len(svg_images) == 0:
-        return
+    if engine_flag & 8:
+        pdf_file_dir = os.path.join(output_dir, 'xp')
+        os.makedirs(pdf_file_dir, exist_ok=True)
+        pdf_file_path = os.path.join(pdf_file_dir, pdf_file_name)
+        save_as_pdf_by_xhtml2pdf(file_path, pdf_file_path)
+        print(f"Processed: {file_path} to {pdf_file_path}")
 
-    for image in svg_images:
-        image.decompose()
+    if engine_flag & 16:
+        pdf_file_dir = os.path.join(output_dir, 's')
+        os.makedirs(pdf_file_dir, exist_ok=True)
+        pdf_file_path = os.path.join(pdf_file_dir, pdf_file_name)
+        save_as_pdf_by_selenium(file_path, pdf_file_path)
 
-    with open(file_path, 'w', encoding='utf-8') as f:
-        f.write(str(soup))
+    if engine_flag & 32:
+        pdf_file_dir = os.path.join(output_dir, 'pk')
+        os.makedirs(pdf_file_dir, exist_ok=True)
+        pdf_file_path = os.path.join(pdf_file_dir, pdf_file_name)
+        save_as_pdf(file_path, pdf_file_path)
 
-# 生成文件的标题
-def update_title(file_path):
-    """
-    从HTML文件路径中提取股票代码和季度信息，生成标题
-
-    Args:
-        file_path (str): HTML文件路径
-
-    Returns:
-        str: 生成的标题，格式为“股票名称2025年一季报-简体中文版-价格与价值”
-    """
-    # 股票映射
-    stocks_kv = {
-        "00700": "腾讯控股",
-        "09992": "泡泡玛特",
-    }
-    # 季度映射
-    quarters_kv = {
-        "1": "一季报",
-        "2": "中报",
-        "3": "三季报",
-        "4": "年报"
-    }
-
-    # 提取股票代码（目录名）
-    symbol = os.path.basename(os.path.dirname(file_path))
-    # 提取文件名中的年份和季度（如2025Q1）
-    file_name = os.path.basename(file_path)
-    year, quarter = "", ""
-    if len(file_name) > 6:
-        year, quarter = file_name[0:4], file_name[5]
-
-    # 不符合格式，无需处理
-    if not year or not quarter or symbol not in stocks_kv or quarter not in quarters_kv:
-        print(f"Skipped title: {file_path}")
-        return
-
-    # 生成标题
-    new_title =  f"{stocks_kv[symbol]}{year}年简体中文版{quarters_kv[quarter]}-价格与价值"
-
-    with open(file_path, 'r', encoding='utf-8') as f:
-        html_content = f.read()
-
-    # 替换<title>标签内容
-    soup = BeautifulSoup(html_content, 'html.parser')
-    title_tag = soup.find('title')
-    if title_tag is None or title_tag.string == new_title:
-        print(f"Skipped title: {file_path}")
-        return
-    title_tag.string = new_title
-
-    # 写入html文件
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(str(soup))
-
-    print(f"Updated title: {file_path}")
-
-# 添加水印
-def add_watermark(file_path):
-    """
-    为html文件添加水印
-
-    Args:
-        file_path (str): html文件路径
-    """
-    # 读取html文件内容
-    with open(file_path, "r", encoding="utf-8") as f:
-        html_content = f.read()
-
-    # 判断是否有旧的样式
-    original_css = ".page {margin:5px 0}"
-    if html_content.find(original_css) == -1:
-        print(f"Skipped watermark: {file_path}")
-        return
-
-    # 替换样式
-    watermark_css = """@page {size:A4; margin: 0;}\n.page {margin:5px 0; position: relative;}\n.page::before {content: "公众号·价格与价值";position: absolute;top: 0;left: 0;right: 0;bottom: 0;display: flex;justify-content: center;align-items: center;font-size: 88px;font-weight: bold;color: rgba(0, 0, 0, 0.1);transform: rotate(-45deg);pointer-events: none; z-index: 1;}"""
-    html_content = html_content.replace(original_css, watermark_css)
-
-    # 写入html文件
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(html_content)
-
-    print(f"Added watermark: {file_path}")
-#
 def save_as_pdf(file_path, output_pdf):
 
    pdfkit.from_file(file_path, output_pdf)
@@ -187,9 +108,50 @@ def save_as_pdf_by_weasyprint(file_path, output_pdf):
 
     HTML(file_path).write_pdf(output_pdf)
 
+def save_as_pdf_by_selenium(file_path, output_dir):
+
+    # 创建Chrome选项
+    chrome_options = Options()
+    chrome_options.add_argument('--headless=new') # 无头模式
+    chrome_options.add_argument("--no-sandbox")  # 禁用沙盒，提升稳定性
+    # chrome_options.add_argument("--disable-dev-shm-usage")  # 解决共享内存问题
+    # chrome_options.add_argument("--disable-gpu")  # 禁用GPU，兼容性更好
+    chrome_options.add_argument("--disable-extensions")  # 禁用扩展
+    # chrome_options.add_argument("--blink-settings=imagesEnabled=false")
+    # chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    # chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument('--blink-settings=imagesEnabled=false')  # 禁用图片加载
+
+    # 初始化WebDriver
+    driver = webdriver.Chrome(options=chrome_options)
+    # driver.set_page_load_timeout(600)  # 设置页面加载超时时间
+
+    # 打开目标网页
+    driver.get(f"file://{file_path}")  # 替换为您的HTML文件路径或URL
+
+    print_options = PrintOptions()
+    print_options.orientation = 'portrait'  # 页面方向：portrait（纵向）, landscape（横向）
+    print_options.background = False  # 是否打印背景
+    print_options.scale = 1.2  # 缩放比例
+    print_options.shrink_to_fit = True
+
+    # 打印页面并获取Base64编码的PDF内容
+    pdf_base64 = driver.print_page(print_options=print_options)
+    pdf_bytes = base64.b64decode(pdf_base64)
+
+    file_name = os.path.basename(file_path)
+    pdf_file_name = f"{file_name[0: len(file_name) - 5]}.pdf"
+    pdf_file_path = os.path.join(output_dir, pdf_file_name)
+    with open(pdf_file_path, "wb") as f:
+        f.write(pdf_bytes)
+
+    driver.quit()
+
+    return pdf_file_path
+
 # 处理全部html文件
 @app.command()
-def main(source_dir: str = "", output_dir: str = ""):
+def main(source_path: str = "", output_dir: str = "./", engine_flag: int = 1):
     """
     将指定目录或单个HTML文件转换为PDF文件
 
@@ -200,21 +162,23 @@ def main(source_dir: str = "", output_dir: str = ""):
     # 校验输出目录
     if not output_dir:
         output_dir = os.getcwd()
+    output_dir = os.path.abspath(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
     # 判断输入是目录还是文件
-    if os.path.isdir(source_dir):
+    source_path = os.path.abspath(source_path)
+    if os.path.isdir(source_path):
         # 遍历html文件
-        for filename in os.listdir(source_dir):
+        for filename in os.listdir(source_path):
             if not filename.endswith(".html"):
                 continue
 
             # 处理单个html文件
-            html_file_path = os.path.join(source_dir, filename)
-            process_file(html_file_path, output_dir)
-    elif os.path.isfile(source_dir) and source_dir.endswith(".html"):
+            html_file_path = os.path.join(source_path, filename)
+            process_file(html_file_path, output_dir, engine_flag)
+    elif os.path.isfile(source_path) and source_path.endswith(".html"):
         # 处理单个html文件
-        process_file(source_dir, output_dir)
+        process_file(source_path, output_dir, engine_flag)
     else:
         raise ValueError("Invalid input path. Must be a directory or an HTML file.")
 
