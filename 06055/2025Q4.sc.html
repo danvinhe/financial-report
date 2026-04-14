@@ -7,6 +7,12 @@
 <title>中烟香港2025年简体中文版年报 | 价格与价值</title>
 <style>.pdf24_02 {position: relative;}
 .pdf24_02::before {content: "公众号·价格与价值";position: absolute;top: 0;left: 0;right: 0;bottom: 0;display: flex;justify-content: center;align-items: center;font-size: 88px;font-weight: bold;color: rgba(0, 0, 0, 0.1);transform: rotate(-45deg);pointer-events: none; z-index: 1;}
+@media print {
+  body { margin: 0 !important; padding: 0 !important; }
+  .pdf24_03 { display: none !important; }
+  .pdf24_02 { page-break-after: always; break-after: page; }
+  .pdf24_02:last-child { page-break-after: auto; break-after: auto; }
+}
 </style><style> 
  .pdf24_ sup {
 	vertical-align: baseline;
