@@ -19,6 +19,8 @@ def process_file(file_path, title_prefix):
 
     add_watermark(file_path, soup)
 
+    adjust_style(file_path, soup)
+
     soup = tc_to_sc(file_path, soup)
 
     new_file_path = file_path.replace(".html", ".sc.html")
@@ -80,30 +82,21 @@ def add_watermark(file_path: str, soup: BeautifulSoup):
     水印挂载在 .pdf24_02::before 上，position: relative 通过 CSS 设置。
     """
 
-    watermark_css = (
-        '.pdf24_02 {position: relative;}\n'
-        '.pdf24_02::before {content: "公众号·价格与价值";position: absolute;top: 0;left: 0;right: 0;bottom: 0;display: flex;justify-content: center;align-items: center;font-size: 88px;font-weight: bold;color: rgba(0, 0, 0, 0.1);transform: rotate(-45deg);pointer-events: none; z-index: 1;}\n'
-        '@media print {\n'
-        '  body { margin: 0 !important; padding: 0 !important; }\n'
-        '  .pdf24_03 { display: none !important; }\n'
-        '  .pdf24_02 { page-break-after: always; break-after: page; }\n'
-        '  .pdf24_02:last-child { page-break-after: auto; break-after: auto; }\n'
-        '}\n'
-    )
-
     # 在 <head> 中插入水印样式（不修改任何元素的 style 属性）
     head_tag = soup.find('head')
     if head_tag is None:
         print(f"Skipped watermark (no <head> found): {file_path}")
         return
-
-    style_tag = soup.new_tag('style')
-    style_tag.string = watermark_css
     first_style = head_tag.find('style')
-    if first_style is not None:
-        first_style.insert_before(style_tag)
-    else:
-        head_tag.append(style_tag)
+    if first_style is None:
+        print(f"Skipped watermark (no <style> found): {file_path}")
+        return
+
+    watermark_css = (
+        '.pdf24_02 {position: relative;}\n'
+        '.pdf24_02::before {content: "公众号·价格与价值";position: absolute;top: 0;left: 0;right: 0;bottom: 0;display: flex;justify-content: center;align-items: center;font-size: 88px;font-weight: bold;color: rgba(0, 0, 0, 0.1);transform: rotate(-45deg);pointer-events: none; z-index: 1;}\n'
+    )
+    first_style.string = watermark_css + first_style.string
 
     print(f"Added watermark {file_path}")
 
@@ -136,6 +129,36 @@ def html_to_pdf(file_path: str):
         browser.close()
 
     print(f"Exported PDF: {pdf_path}")
+
+def adjust_style(file_path: str, soup: BeautifulSoup):
+    """
+    调整样式
+    """
+    head_tag = soup.find('head')
+    if head_tag is None:
+        print(f"Skipped style (no <head> found): {file_path}")
+        return
+    first_style = head_tag.find('style')
+    if first_style is None:
+        print(f"Skipped style (no <style> found): {file_path}")
+        return
+
+    # 边框样式可以覆盖
+    first_style.string = first_style.string.replace('box-shadow: 0 0 5px rgba(0,0,0,0.3) !important', 'box-shadow: 0 0 5px rgba(0,0,0,0.3)')
+
+    # 打印时的样式
+    print_css = (
+        '@media print {\n'
+        '   body { margin: 0 !important; padding: 0 !important; }\n'
+        '   body > div {box-shadow: none !important;}'
+        '   .pdf24_02 { page-break-after: always; break-after: page; }\n'
+        '   .pdf24_02:last-child { page-break-after: auto; break-after: auto; }\n'
+        '}\n'
+    )
+    first_style.string = print_css + first_style.string
+
+    print(f"Adjusted style: {file_path}")
+
 
 @app.command()
 def main(source_dir: str = typer.Argument(..., help="HTML 文件或目录路径"), title_prefix: str = typer.Argument(..., help="标题前缀")):
