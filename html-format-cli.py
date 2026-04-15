@@ -15,7 +15,7 @@ def process_file(file_path, title_prefix):
 
     update_title(file_path, soup, title_prefix)
 
-    remove_images(file_path, soup)
+    # remove_images(file_path, soup)
 
     add_watermark(file_path, soup)
 
