@@ -1,9 +1,9 @@
 import os
+import re
 import typer
 from bs4 import BeautifulSoup
 from opencc import OpenCC
 from playwright.sync_api import sync_playwright
-import re
 
 app = typer.Typer()
 
@@ -22,6 +22,8 @@ def process_file(file_path, title_prefix):
     adjust_style(file_path, soup)
 
     soup = tc_to_sc(file_path, soup)
+
+    replace_fonts(file_path, soup)
 
     new_file_path = file_path.replace(".html", ".sc.html")
     with open(new_file_path, 'w', encoding='utf-8') as f:
@@ -129,6 +131,81 @@ def html_to_pdf(file_path: str):
         browser.close()
 
     print(f"Exported PDF: {pdf_path}")
+
+def replace_fonts(file_path: str, soup: BeautifulSoup):
+    """
+    将 pdf2htmlEX 嵌入字体名替换为 macOS 系统字体，
+    粗细从字体名拆出为独立的 font-weight。
+
+    两步：1) 删除所有 @font-face；2) 替换普通规则中的 font-family
+    """
+    # pdf2htmlEX 内部字体名（去前缀后）→ (macOS 系统字体, font-weight, 是否斜体)
+    FONT_MAP = {
+        # ── 港版宋体 MSungHK ─────────────────────────────────────
+        "MSungHK":                      ("MSung", 400, False),
+        "MSungHK-Light":                ("MSung", 300, False),
+        "MSungHK-Bold":                 ("MSung", 700, False),
+        "MSungHK-Light-ETen-B5-H":      ("MSung", 300, False),
+        "MSungHK-Bold-ETen-B5-H":       ("MSung", 700, False),
+        # ── 港版黑体 MHeiHK ───────────────────────────────────────
+        "MHeiHK":                       ("Heiti SC", 400, False),
+        "MHeiHK-Light":                 ("Heiti SC", 300, False),
+        "MHeiHK-Bold":                  ("Heiti SC", 700, False),
+        "MHeiHK-Bold-ETen-B5-H":        ("Heiti SC", 700, False),
+        # ── 西文 Times ────────────────────────────────────────────
+        "TimesLTStd-Roman":             ("Times New Roman", 400, False),
+        "TimesLTStd-Bold":              ("Times New Roman", 700, False),
+        "TimesLTStd-BoldItalic":        ("Times New Roman", 700, True),
+        "TimesNewRomanPSMT":            ("Times New Roman", 400, False),
+        "TimesNewRomanPS-BoldMT":       ("Times New Roman", 700, False),
+        "TimesNewRomanPS-BoldItalicMT": ("Times New Roman", 700, True),
+        # ── 思源宋体 ───────────────────────────
+        "AdobeSongStd-Light":           ("Source Han Serif CN", 300, False),
+        "AdobeMingStd-Light":           ("Source Han Serif CN", 300, False),
+    }
+
+    def decode(name: str):
+        # 按 key 长度从长到短排序，确保最具体的匹配优先
+        for internal, (real, weight, italic) in sorted(FONT_MAP.items(), key=lambda x: -len(x[0])):
+            if internal in name:
+                return real, weight, italic
+        return None, None, False
+
+    def repl_font(m):
+        parts = re.split(r',\s*', m.group(1))
+        new_parts = []
+        new_weight = None
+        new_italic = False
+        for p in parts:
+            p = p.strip().strip('"\'')
+            real, weight, italic = decode(p)
+            if real:
+                new_parts.append(f'"{real}"' if " " in real else real)
+                if weight is not None:
+                    new_weight = weight
+                if italic:
+                    new_italic = True
+            else:
+                new_parts.append(p)
+        result = "font-family: " + ", ".join(new_parts) + ";"
+        if new_weight is not None:
+            result += f" font-weight: {new_weight};"
+        if new_italic:
+            result += " font-style: italic;"
+        return result
+
+    for style_tag in soup.find_all('style'):
+        if not style_tag.string:
+            continue
+        css = style_tag.string
+        # 1. 删除 @font-face { ... }
+        css = re.sub(r'@font-face\s*\{[^}]*\}', '', css)
+        # 2. 替换 font-family（包含末尾分号，一并替换避免双分号）
+        css = re.sub(r'font-family\s*:\s*([^;}\n]+?)\s*;', repl_font, css)
+        style_tag.string = css
+
+    print(f"Replaced fonts: {file_path}")
+
 
 def adjust_style(file_path: str, soup: BeautifulSoup):
     """
